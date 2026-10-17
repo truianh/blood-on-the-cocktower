@@ -2484,6 +2484,66 @@
   }
   .cocktower-audio-label { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
     overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+  /* MOBILE TRACKER — private, independent seat-marking scratchpad. */
+  .mobile-tracker-screen[hidden] { display:none !important; }
+  .mobile-tracker-screen {
+    position:fixed; inset:0; z-index:2200;
+    overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+    background:radial-gradient(ellipse at 50% 0%,#3d263d 0%,#1b1423 45%,#100c18 100%);
+    color:#f7e9d5;
+    padding:0 max(14px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+    font-family:var(--font-ui),Arial,sans-serif;
+  }
+  body.mobile-tracker-playing { overflow:hidden; }
+  body.mobile-tracker-playing .cocktower-sound-dock { display:none !important; }
+  .mobile-tracker-inner { width:min(100%,560px); margin:0 auto; padding-bottom:18px; }
+  .mobile-tracker-header {
+    position:sticky; top:0; z-index:3; padding:calc(12px + env(safe-area-inset-top)) 0 13px;
+    background:linear-gradient(to bottom,#241a2e 0%,rgba(36,26,46,.98) 80%,rgba(36,26,46,.94) 100%);
+    border-bottom:1px solid rgba(220,181,133,.4);
+  }
+  .mobile-tracker-top-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .mobile-tracker-back,.mobile-tracker-reset {
+    min-height:44px; border:1px solid #c09b81; border-radius:12px;
+    padding:9px 13px; font-size:13px; font-weight:700; cursor:pointer;
+    background:#3b2a3e; color:#f9e4cf;
+  }
+  .mobile-tracker-reset { border-color:#e6bd77; background:#6c3558; color:#fff2e1; }
+  .mobile-tracker-back:focus-visible,.mobile-tracker-reset:focus-visible,
+  .mobile-tracker-seat:focus-visible { outline:3px solid #ffd87b; outline-offset:3px; }
+  .mobile-tracker-title { margin:14px 0 4px; font:400 clamp(25px,6vw,35px)/1.1 var(--font-heading),Georgia,serif; letter-spacing:.025em; color:#f1d09b; }
+  .mobile-tracker-summary { margin:0; font-size:13px; color:#d1bfcf; }
+  .mobile-tracker-grid {
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:clamp(10px,3vw,16px); padding:18px 0 20px;
+  }
+  .mobile-tracker-seat {
+    display:flex; align-items:center; justify-content:center;
+    min-width:0; min-height:clamp(70px,17vw,94px); padding:10px;
+    border:2px solid #d5c4a7; border-radius:16px;
+    background:#fcfaf5; color:#211827;
+    font:800 clamp(23px,7vw,34px)/1 var(--font-ui),Arial,sans-serif;
+    font-variant-numeric:tabular-nums;
+    touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    box-shadow:0 3px 8px rgba(0,0,0,.2);
+    transition:background-color .13s ease,color .13s ease,border-color .13s ease;
+  }
+  .mobile-tracker-seat.is-selected {
+    background:#33273b; color:#fff; border-color:#b99abb;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 3px 8px rgba(0,0,0,.2);
+  }
+  .mobile-tracker-hint { margin:0 0 10px; color:#c6b4c5; text-align:center; font-size:12px; line-height:1.5; }
+  .mobile-tracker-launch-btn { min-width:180px; min-height:45px; padding:10px 18px; font-size:14px; }
+  @media(max-width:380px){
+    .mobile-tracker-top-actions { gap:7px; }
+    .mobile-tracker-back,.mobile-tracker-reset { font-size:12px; padding:9px 10px; }
+    .mobile-tracker-grid { gap:10px; padding-top:14px; }
+    .mobile-tracker-seat { min-height:72px; }
+  }
+  @media(prefers-reduced-motion:reduce){
+    .mobile-tracker-seat { transition:none; }
+  }
 </style>
 </head>
 <body class="night title-playing">
@@ -2551,7 +2611,7 @@
         <span class="legend-item"><span class="rule-legend-icon nominated-rule-icon" aria-hidden="true"><span>✋</span></span><span><b>Already nominated</b><small>Cannot nominate again today</small></span></span>
         <span class="legend-item"><span class="rule-legend-icon" aria-hidden="true"><span>🎯</span></span><span><b>Already accused</b><small>Cannot be nominated again today</small></span></span>
       </div>
-      <div class="start-game-row"><button id="startGameBtn" class="btn primary start-game-btn" type="button">Start Game</button><button id="cocktowerLoreBtn" class="lore-launch-btn" type="button" aria-haspopup="dialog" aria-controls="loreScreen">✦ Cocktower Lore</button></div>
+      <div class="start-game-row"><button id="startGameBtn" class="btn primary start-game-btn" type="button">Start Game</button><button id="openMobileTrackerBtn" class="btn mobile-tracker-launch-btn" type="button" aria-controls="mobileTrackerScreen">Mobile Tracker</button><button id="cocktowerLoreBtn" class="lore-launch-btn" type="button" aria-haspopup="dialog" aria-controls="loreScreen">✦ Cocktower Lore</button></div>
     </section>
     <!-- Independent phase/setup controls above the nomination rail (also visible at Night). -->
     <div class="right-rail">
@@ -2710,6 +2770,23 @@
   </div>
 </dialog>
 
+
+
+<!-- MOBILE TRACKER — a private tap-to-mark companion screen, independent of game state. -->
+<section id="mobileTrackerScreen" class="mobile-tracker-screen" hidden role="region" aria-label="Mobile Tracker">
+  <div class="mobile-tracker-inner">
+    <header class="mobile-tracker-header">
+      <div class="mobile-tracker-top-actions">
+        <button id="mobileTrackerBackBtn" class="mobile-tracker-back" type="button">‹ Back to Setup</button>
+        <button id="mobileTrackerResetBtn" class="mobile-tracker-reset" type="button">↺ Reset</button>
+      </div>
+      <h2 class="mobile-tracker-title">Mobile Tracker</h2>
+      <p id="mobileTrackerSummary" class="mobile-tracker-summary" role="status" aria-live="polite">0 of 15 seats selected</p>
+    </header>
+    <div id="mobileTrackerGrid" class="mobile-tracker-grid" aria-label="Toggle seats" role="group"></div>
+    <p class="mobile-tracker-hint">Tap a seat to mark it dark. Tap again to clear it. Selections stay on this device until reset.</p>
+  </div>
+</section>
 
 <!-- TITLE SCREEN — always shown first when the app launches. -->
 <section id="titleScreen" class="title-screen" role="region" aria-label="Blood on the Cocktower title screen">
@@ -3212,6 +3289,94 @@
   const LEGACY_KEY = 'botc-seat-circle-v1';
   const MIN_PLAYERS = 5, MAX_PLAYERS = 20;
   const $ = id => document.getElementById(id);
+
+  // Separate Storyteller scratchpad. No changes to player status, roles or voting.
+  // Seat count is always derived from Setup; only selected numbers are persisted.
+  const TRACKER_KEY='cocktower-mobile-tracker-v1';
+  const trackerScreen=$('mobileTrackerScreen');
+  const trackerGrid=$('mobileTrackerGrid');
+  let trackerSeats=new Set();
+  try {
+    const stored=JSON.parse(localStorage.getItem(TRACKER_KEY)||'[]');
+    if(Array.isArray(stored)){
+      trackerSeats=new Set(stored.filter(n=>Number.isInteger(n)&&n>=1&&n<=MAX_PLAYERS));
+    }
+  } catch(_) { /* Private browsing may disable local storage. */ }
+  function saveTracker(){
+    try{localStorage.setItem(TRACKER_KEY,JSON.stringify([...trackerSeats].sort((a,b)=>a-b)));}
+    catch(_) { /* Tracker still works for the current visit. */ }
+  }
+  function trimTrackerToSeatCount(){
+    let changed=false;
+    for(const seat of trackerSeats){
+      if(seat>players.length){trackerSeats.delete(seat);changed=true;}
+    }
+    if(changed)saveTracker();
+  }
+  function updateTrackerSummary(){
+    $('mobileTrackerSummary').textContent=`${trackerSeats.size} of ${players.length} seats selected`;
+  }
+  function renderTracker(){
+    trimTrackerToSeatCount();
+    const fragment=document.createDocumentFragment();
+    for(let seat=1;seat<=players.length;seat++){
+      const selected=trackerSeats.has(seat);
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='mobile-tracker-seat'+(selected?' is-selected':'');
+      button.dataset.seat=String(seat);
+      button.textContent=String(seat);
+      button.setAttribute('aria-pressed',String(selected));
+      button.setAttribute('aria-label',`Seat ${seat}, ${selected?'selected':'unselected'}`);
+      fragment.append(button);
+    }
+    trackerGrid.replaceChildren(fragment);
+    updateTrackerSummary();
+  }
+  function openMobileTracker(){
+    if(isPresenting || document.body.classList.contains('title-playing') ||
+      document.body.classList.contains('lore-playing') ||
+      document.body.classList.contains('endgame-playing'))return;
+    renderTracker();
+    trackerScreen.hidden=false;
+    document.body.classList.add('mobile-tracker-playing');
+    document.querySelector('.app').inert=true;
+    syncMusicForView();
+    $('mobileTrackerBackBtn').focus({preventScroll:true});
+  }
+  function closeMobileTracker(){
+    if(trackerScreen.hidden)return;
+    trackerScreen.hidden=true;
+    document.body.classList.remove('mobile-tracker-playing');
+    document.querySelector('.app').inert=false;
+    syncMusicForView();
+    $('openMobileTrackerBtn').focus({preventScroll:true});
+  }
+  trackerGrid.addEventListener('click',event=>{
+    const button=event.target.closest('button[data-seat]');
+    if(!button||!trackerGrid.contains(button))return;
+    const seat=Number(button.dataset.seat);
+    if(!Number.isInteger(seat)||seat<1||seat>players.length)return;
+    if(trackerSeats.has(seat))trackerSeats.delete(seat);
+    else trackerSeats.add(seat);
+    const selected=trackerSeats.has(seat);
+    button.classList.toggle('is-selected',selected);
+    button.setAttribute('aria-pressed',String(selected));
+    button.setAttribute('aria-label',`Seat ${seat}, ${selected?'selected':'unselected'}`);
+    updateTrackerSummary();
+    saveTracker();
+  });
+  $('mobileTrackerResetBtn').addEventListener('click',()=>{
+    trackerSeats.clear();
+    renderTracker();
+    saveTracker();
+  });
+  $('mobileTrackerBackBtn').addEventListener('click',closeMobileTracker);
+  $('openMobileTrackerBtn').addEventListener('click',openMobileTracker);
+  trackerScreen.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();closeMobileTracker();}
+  });
+
   // ================================================================
   // DECORATIVE CORNER LAYOUT — editable sizing for large-TV display.
   // The sign occupies the upper-left and the day-only timer the upper-right
@@ -4336,7 +4501,7 @@
   function syncMusicForView(){
     const classes=document.body.classList;
     const scene=(classes.contains('title-playing')||classes.contains('lore-playing'))?'lore':
-      classes.contains('endgame-playing')?null:
+      classes.contains('endgame-playing')||classes.contains('mobile-tracker-playing')?null:
       isPresenting?(phase==='Night'?'night':'day'):null;
     cocktowerMusic.syncScene(scene);
   }
@@ -4344,6 +4509,8 @@
     sanitizeSecretRoles();
     renderPhase(); renderSeats(); renderRoster(); renderDefaultRoleCount(); renderSecretRoleSetup();
     if (dialog.open) updateStatusDialog();
+    trimTrackerToSeatCount();
+    if(!trackerScreen.hidden)renderTracker();
     syncMusicForView();
   }
   function resizePlayers(value) {
