@@ -2424,70 +2424,66 @@
     .title-screen,.title-screen-crest { transition:none !important; }
   }
 
-  /* Audio controls: floating on Title/gameplay/endings, inline beside Lore navigation. */
-  .cocktower-audio-controls {
+  /* One compact toolbar holds two independent mixers. Keep both audio controls
+     side by side; only the toolbar moves between gameplay and the Lore footer. */
+  .cocktower-sound-dock {
     position:fixed; top:max(12px,env(safe-area-inset-top)); right:max(12px,env(safe-area-inset-right));
-    z-index:1500; display:flex; align-items:center; gap:8px; padding:6px 10px 6px 6px;
+    z-index:1500; display:flex; align-items:center; gap:6px;
+    max-width:calc(100vw - 16px);
+  }
+  .cocktower-audio-controls {
+    position:relative; display:flex; align-items:center; min-width:0;
+    gap:4px; padding:3px 7px 3px 4px;
     background:rgba(26,12,30,.88); color:#f4dfc2;
     border:1px solid rgba(215,181,115,.58); border-radius:999px;
-    box-shadow:0 3px 18px rgba(0,0,0,.35); backdrop-filter:blur(9px);
-    font:600 12px/1 var(--font-ui),Arial,sans-serif;
+    box-shadow:0 3px 14px rgba(0,0,0,.35); backdrop-filter:blur(9px);
+    font:600 10px/1 var(--font-ui),Arial,sans-serif;
   }
   .cocktower-audio-toggle {
-    flex:0 0 auto; display:grid; place-items:center; width:32px; height:32px;
+    flex:0 0 auto; display:grid; place-items:center; width:26px; height:26px;
     border:0; border-radius:50%; padding:0; background:rgba(130,89,72,.3); color:inherit;
-    font:700 19px/1 Arial,sans-serif; cursor:pointer;
+    font:700 16px/1 Arial,sans-serif; cursor:pointer;
   }
   .cocktower-audio-toggle:hover { background:rgba(198,147,96,.37); }
   .cocktower-audio-toggle:focus-visible, .cocktower-audio-volume:focus-visible {
     outline:2px solid #f7d98c; outline-offset:2px;
   }
-  .cocktower-audio-volume { width:82px; height:21px; margin:0; accent-color:#d7b779; cursor:pointer; }
+  .cocktower-audio-volume { flex:0 1 58px; width:58px; min-width:40px; height:18px;
+    margin:0; accent-color:#d7b779; cursor:pointer; }
   .cocktower-audio-controls.is-muted .cocktower-audio-volume { opacity:.55; }
-  /* The very same controls are moved into the Lore footer while reading.
-     Using the footer's flex flow keeps them entirely clear of the comic art. */
-  .cocktower-audio-controls.is-lore-docked {
-    position:static; inset:auto; flex:0 0 auto; z-index:auto;
-    padding:3px 9px 3px 4px; box-shadow:none;
-  }
-  .lore-actions > .cocktower-audio-controls { margin-right:clamp(4px,.5vw,10px); }
-  /* Phase navigation occupies the upper-right of gameplay; move sound controls
-     below the left rail instead. Cinematics retain the upper-right position. */
-  body:not(.title-playing):not(.lore-playing):not(.endgame-playing) .cocktower-audio-controls {
-    top:auto; right:auto;
-    bottom:max(12px,env(safe-area-inset-bottom));
-    left:max(12px,env(safe-area-inset-left));
-  }
-
-  /* Night soundtrack has its own mixer, independent of sound effects. */
   .cocktower-audio-heading {
-    font:800 9px/1.15 var(--font-ui),Arial,sans-serif;
-    letter-spacing:.09em; white-space:nowrap; color:#e8c99e;
+    font:800 8px/1.15 var(--font-ui),Arial,sans-serif;
+    letter-spacing:.06em; white-space:nowrap; color:#e8c99e;
   }
-  .cocktower-music-controls { top:calc(max(12px,env(safe-area-inset-top)) + 54px); }
   .cocktower-music-controls .cocktower-audio-toggle { color:#e8d8ff; }
-  body:not(.title-playing):not(.lore-playing):not(.endgame-playing)
-    .cocktower-audio-controls.cocktower-music-controls {
-      bottom:calc(max(12px,env(safe-area-inset-bottom)) + 54px);
+  /* Phase navigation occupies the upper-right of gameplay, so the audio toolbar
+     sits at the bottom-left; a single short row avoids the previous stacked overlay. */
+  body:not(.title-playing):not(.lore-playing):not(.endgame-playing) .cocktower-sound-dock {
+    top:auto; right:auto;
+    bottom:max(8px,env(safe-area-inset-bottom));
+    left:max(8px,env(safe-area-inset-left));
   }
+  /* The shared toolbar docks inside the Lore footer without covering the comic. */
+  .cocktower-sound-dock.is-lore-docked {
+    position:static; inset:auto; flex:0 0 auto; z-index:auto;
+    margin-right:clamp(4px,.5vw,10px);
+  }
+  .cocktower-sound-dock.is-lore-docked .cocktower-audio-controls { box-shadow:none; }
   @media(max-width:1100px) {
     .lore-toolbar { flex-wrap:wrap; justify-content:center; }
     .lore-progress { flex:1 1 100%; justify-content:center; flex-wrap:wrap; }
     .lore-actions { flex:1 1 100%; flex-wrap:wrap; justify-content:center; gap:6px; }
-    .lore-actions > .cocktower-audio-controls { margin-right:0; }
+    .lore-actions > .cocktower-sound-dock { margin-right:0; }
   }
   @media(max-width:520px) {
-    .cocktower-audio-heading { font-size:8px; }
-    .cocktower-music-controls { top:calc(max(12px,env(safe-area-inset-top)) + 50px); }
-    body:not(.title-playing):not(.lore-playing):not(.endgame-playing)
-      .cocktower-audio-controls.cocktower-music-controls {
-        bottom:calc(max(12px,env(safe-area-inset-bottom)) + 50px);
-    }
+    .cocktower-sound-dock { gap:4px; }
+    .cocktower-audio-controls { gap:3px; padding:3px 5px 3px 3px; }
+    .cocktower-audio-toggle { width:24px; height:24px; font-size:15px; }
+    .cocktower-audio-volume { flex-basis:43px; width:43px; min-width:35px; }
+    .cocktower-audio-heading { font-size:8px; letter-spacing:0; }
   }
   .cocktower-audio-label { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
     overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-  @media(max-width:520px) { .cocktower-audio-controls { gap:5px; padding:4px 7px 4px 4px; }
-    .cocktower-audio-toggle { width:30px; height:30px; } .cocktower-audio-volume { width:64px; } }
 </style>
 </head>
 <body class="night title-playing">
@@ -2888,17 +2884,19 @@
   <p>And thus, Deepwood Bottom shall now forever live up to its name.</p>
 </template>
 
+<div id="cocktowerSoundDock" class="cocktower-sound-dock" role="group" aria-label="Audio controls">
 <div id="cocktowerAudioControls" class="cocktower-audio-controls" role="group" aria-label="Sound effects controls">
   <span class="cocktower-audio-heading" aria-hidden="true">SFX</span>
   <button id="cocktowerAudioToggle" class="cocktower-audio-toggle" type="button" aria-label="Mute game sounds" aria-pressed="false" title="Mute game sounds">♫</button>
   <label class="cocktower-audio-label" for="cocktowerAudioVolume">Game audio volume</label>
   <input id="cocktowerAudioVolume" class="cocktower-audio-volume" type="range" min="0" max="100" step="1" value="45" aria-label="Game audio volume" title="Game audio volume">
 </div>
-<div id="cocktowerMusicControls" class="cocktower-audio-controls cocktower-music-controls" role="group" aria-label="Night background music controls">
-  <span class="cocktower-audio-heading" aria-hidden="true">NIGHT MUSIC</span>
-  <button id="cocktowerMusicToggle" class="cocktower-audio-toggle" type="button" aria-label="Mute night music" aria-pressed="false" title="Mute night music">♫</button>
-  <label class="cocktower-audio-label" for="cocktowerMusicVolume">Night background music volume</label>
-  <input id="cocktowerMusicVolume" class="cocktower-audio-volume" type="range" min="0" max="100" step="1" value="35" aria-label="Night background music volume" title="Night background music volume">
+<div id="cocktowerMusicControls" class="cocktower-audio-controls cocktower-music-controls" role="group" aria-label="Background music controls">
+  <span class="cocktower-audio-heading" aria-hidden="true">Music</span>
+  <button id="cocktowerMusicToggle" class="cocktower-audio-toggle" type="button" aria-label="Mute background music" aria-pressed="false" title="Mute background music">♫</button>
+  <label class="cocktower-audio-label" for="cocktowerMusicVolume">Background music volume</label>
+  <input id="cocktowerMusicVolume" class="cocktower-audio-volume" type="range" min="0" max="100" step="1" value="35" aria-label="Background music volume" title="Background music volume">
+</div>
 </div>
 <script>
 (() => {
@@ -3062,11 +3060,11 @@
       dock.classList.toggle('is-muted',silent);
       toggle.textContent=silent?'♪̸':'♫';
       toggle.setAttribute('aria-pressed',String(silent));
-      toggle.setAttribute('aria-label',silent?'Unmute night music':'Mute night music');
-      toggle.title=silent?'Unmute night music':'Mute night music';
+      toggle.setAttribute('aria-label',silent?'Unmute background music':'Mute background music');
+      toggle.title=silent?'Unmute background music':'Mute background music';
       slider.value=String(Math.round(volume*100));
-      slider.title='Night music volume '+Math.round(volume*100)+'%';
-      dock.title=phaseEligible?'Night music controls':'Night music (paused outside Night)';
+      slider.title='Music volume '+Math.round(volume*100)+'%';
+      dock.title=phaseEligible?'Music controls':'Music (currently active during Night only)';
     }
     function cancelFade(){if(fadeTimer!==null){clearInterval(fadeTimer);fadeTimer=null;}}
     function fadeTo(target,duration,pauseWhenDone=false){
@@ -4792,19 +4790,15 @@
   // All four comic pages retain their one-click-at-a-time reveal progression.
   const titleScreen=$('titleScreen');
   const loreScreen=$('loreScreen');
-  const audioDock=$('cocktowerAudioControls');
-  const musicDock=$('cocktowerMusicControls');
+  const soundDock=$('cocktowerSoundDock');
   const loreActions=loreScreen.querySelector('.lore-actions');
   function dockLoreAudio(docked) {
     if(docked) {
-      loreActions.prepend(musicDock);
-      loreActions.prepend(audioDock);
-      audioDock.classList.add('is-lore-docked');
-      musicDock.classList.add('is-lore-docked');
+      loreActions.prepend(soundDock);
+      soundDock.classList.add('is-lore-docked');
     } else {
-      audioDock.classList.remove('is-lore-docked');
-      musicDock.classList.remove('is-lore-docked');
-      document.body.append(audioDock,musicDock);
+      soundDock.classList.remove('is-lore-docked');
+      document.body.append(soundDock);
     }
   }
   const lorePages=Array.from(loreScreen.querySelectorAll('[data-lore-page]'));
@@ -4952,13 +4946,13 @@
   loreScreen.addEventListener('click',event=>{
     if(!loreOpen || !loreScreen.classList.contains('is-finished')) return;
     // Audio controls must stay usable even on the final "click anywhere" page.
-    if(event.target.closest('#cocktowerAudioControls, #cocktowerMusicControls')) return;
+    if(event.target.closest('#cocktowerSoundDock')) return;
     event.preventDefault();
     event.stopPropagation();
     closeCocktowerLore();
   },true);
   loreScreen.addEventListener('click',event=>{
-    if(event.target.closest('button')) return;
+    if(event.target.closest('button, #cocktowerSoundDock')) return;
     advanceCocktowerLore();
   });
   document.addEventListener('keydown',event=>{
