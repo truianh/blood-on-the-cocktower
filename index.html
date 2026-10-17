@@ -3098,12 +3098,12 @@
           result.then(()=>{
             if(token!==playToken) return;
             if(!desired){music.pause();return;}
-            fadeTo(volume,1700);
+            fadeTo(volume,3500);
           }).catch(()=>{
             // Browser autoplay policies may defer playback until a gesture.
             // The next click/key press on the page will retry safely.
           });
-        } else if(desired) fadeTo(volume,1700);
+        } else if(desired) fadeTo(volume,3500);
       }catch(_) { /* Retry on the next user gesture. */ }
     }
     function reconcile(){
