@@ -3033,27 +3033,32 @@
   })();
 
 
-  // Independent, phase-aware nighttime background soundtrack.
-  // Never route this track through the sound-effects mixer: each has its own
-  // persistent volume and mute setting. Audio position survives Day pauses.
-  const cocktowerNightMusic=(()=>{
+  // Shared background-music mixer for Title/Lore and Night. Independent of SFX.
+  // Keep the existing preferences key so upgrading does not reset music settings.
+  const cocktowerMusic=(()=>{
     const KEY='cocktowerNightMusicPrefsV1';
-    const music=new Audio('Assets/Music/night-music.m4a');
-    music.loop=true;
-    music.preload='metadata';
-    music.volume=0;
+    const tracks={
+      lore:new Audio('Assets/Music/lore.mp3'),
+      night:new Audio('Assets/Music/night-music.m4a')
+    };
+    Object.values(tracks).forEach(track=>{
+      track.loop=true;
+      track.preload='metadata';
+      track.volume=0;
+    });
     const dock=document.getElementById('cocktowerMusicControls');
     const toggle=document.getElementById('cocktowerMusicToggle');
     const slider=document.getElementById('cocktowerMusicVolume');
-    let muted=false, volume=.35, phaseEligible=false, desired=false;
-    let previousVolume=volume, fadeTimer=null, playToken=0;
+    let muted=false, volume=.35, scene=null, desired=null, previousVolume=volume;
+    const fadeTimers={lore:null,night:null};
+    const playTokens={lore:0,night:0};
     try {
       const prefs=JSON.parse(localStorage.getItem(KEY)||'null');
       if(prefs&&typeof prefs==='object') {
         if(Number.isFinite(prefs.volume)) volume=Math.max(0,Math.min(1,prefs.volume));
         if(typeof prefs.muted==='boolean') muted=prefs.muted;
       }
-    }catch(_) { /* Storage can be restricted for local files. */ }
+    } catch(_) { /* Storage is optional for local files. */ }
     function persist(){try{localStorage.setItem(KEY,JSON.stringify({muted,volume}));}catch(_){}}
     function syncControls(){
       const silent=muted||volume===0;
@@ -3064,66 +3069,87 @@
       toggle.title=silent?'Unmute background music':'Mute background music';
       slider.value=String(Math.round(volume*100));
       slider.title='Music volume '+Math.round(volume*100)+'%';
-      dock.title=phaseEligible?'Music controls':'Music (currently active during Night only)';
+      dock.title=scene==='lore'?'Music controls (Title and Lore)':
+        scene==='night'?'Music controls (Night)':'Music (paused for this scene)';
     }
-    function cancelFade(){if(fadeTimer!==null){clearInterval(fadeTimer);fadeTimer=null;}}
-    function fadeTo(target,duration,pauseWhenDone=false){
-      cancelFade();
+    function cancelFade(key){
+      if(fadeTimers[key]!==null){clearInterval(fadeTimers[key]);fadeTimers[key]=null;}
+    }
+    function halt(key,resetPosition=false){
+      playTokens[key]++;
+      cancelFade(key);
+      const track=tracks[key];
+      track.pause();
+      track.volume=0;
+      if(resetPosition){try{track.currentTime=0;}catch(_){}}
+    }
+    function fadeTo(key,target,duration,pauseWhenDone=false){
+      cancelFade(key);
+      const track=tracks[key];
       target=Math.max(0,Math.min(1,target));
-      const start=music.volume, begin=performance.now();
+      const start=track.volume, begin=performance.now();
       function step(){
         const t=Math.min(1,(performance.now()-begin)/duration);
         const smooth=t*t*(3-2*t);
-        music.volume=Math.max(0,Math.min(1,start+(target-start)*smooth));
+        track.volume=Math.max(0,Math.min(1,start+(target-start)*smooth));
         if(t>=1){
-          cancelFade();
-          if(pauseWhenDone && !desired) music.pause();
+          cancelFade(key);
+          if(pauseWhenDone && desired!==key)track.pause();
         }
       }
-      if(Math.abs(start-target)<.001 || !duration){
-        music.volume=target;
-        if(pauseWhenDone && !desired) music.pause();
+      if(Math.abs(start-target)<.001||!duration){
+        track.volume=target;
+        if(pauseWhenDone && desired!==key)track.pause();
         return;
       }
-      fadeTimer=setInterval(step,35);
+      fadeTimers[key]=setInterval(step,35);
     }
-    function beginPlayback(){
-      if(!desired||!music.paused) return;
-      const token=++playToken;
-      cancelFade();
-      music.volume=0;
-      try {
-        const result=music.play();
-        if(result&&typeof result.then==='function') {
-          result.then(()=>{
-            if(token!==playToken) return;
-            if(!desired){music.pause();return;}
-            fadeTo(volume,3500);
-          }).catch(()=>{
-            // Browser autoplay policies may defer playback until a gesture.
-            // The next click/key press on the page will retry safely.
-          });
-        } else if(desired) fadeTo(volume,3500);
-      }catch(_) { /* Retry on the next user gesture. */ }
+    function beginPlayback(key){
+      if(desired!==key || !tracks[key].paused)return;
+      const track=tracks[key], token=++playTokens[key];
+      cancelFade(key);
+      track.volume=0;
+      function onStarted(){
+        if(token!==playTokens[key] || desired!==key){
+          track.pause();track.volume=0;return;
+        }
+        // Keep the original 3.5s Night fade; gently introduce Lore on Title.
+        fadeTo(key,volume,key==='night'?3500:1400);
+      }
+      try{
+        const result=track.play();
+        if(result&&typeof result.then==='function')result.then(onStarted).catch(()=>{
+          // A first visit may require a click before browsers permit audible music.
+          // A subsequent pointer/keyboard gesture retries the same track.
+        });
+        else onStarted();
+      }catch(_) { /* Continue without music until a playback gesture succeeds. */ }
     }
     function reconcile(){
-      const want=phaseEligible&&!muted&&volume>0;
-      if(want!==desired){
-        desired=want;
-        playToken++;
-        if(!want) fadeTo(0,1300,true);
-        else if(music.paused) beginPlayback();
-        else fadeTo(volume,1500);
-      } else if(want && previousVolume!==volume){
-        if(music.paused) beginPlayback();
-        else fadeTo(volume,170);
+      const next=!muted&&volume>0&&(scene==='night'||scene==='lore')?scene:null;
+      if(next!==desired){
+        const previous=desired;
+        desired=next;
+        if(previous==='lore')halt('lore',true);
+        if(previous==='night'){
+          // Preserve Night-to-Day fade/pause; leave Setup and Ending silent.
+          if(scene==='day'||scene==='night')fadeTo('night',0,1300,true);
+          else halt('night');
+        }
+        if(next){
+          if(tracks[next].paused)beginPlayback(next);
+          else fadeTo(next,volume,next==='night'?1500:250);
+        }
+      }else if(next && previousVolume!==volume){
+        if(tracks[next].paused)beginPlayback(next);
+        else fadeTo(next,volume,170);
       }
       previousVolume=volume;
       syncControls();
     }
     toggle.addEventListener('click',()=>{
       muted=!muted;
-      if(volume===0&&!muted) volume=.35;
+      if(volume===0&&!muted)volume=.35;
       reconcile();persist();
     });
     slider.addEventListener('input',()=>{
@@ -3131,17 +3157,21 @@
       muted=volume===0;
       reconcile();persist();
     });
-    // Re-attempt playback if the browser initially denied automatic audio.
-    // The handler only runs when it is actually Night and music is enabled.
-    function retryAfterGesture(){if(desired&&music.paused)beginPlayback();}
+    // Autoplay restrictions: retry only the selected scene's track on a gesture.
+    function retryAfterGesture(){
+      if(desired && tracks[desired].paused)beginPlayback(desired);
+    }
     document.addEventListener('pointerdown',retryAfterGesture,true);
     document.addEventListener('keydown',retryAfterGesture,true);
     dock.addEventListener('click',event=>event.stopPropagation());
     dock.addEventListener('keydown',event=>event.stopPropagation());
     syncControls();
-    return {
-      syncPhase(isNight){phaseEligible=Boolean(isNight);reconcile();},
-      stop(){desired=false;playToken++;cancelFade();music.pause();music.volume=0;}
+    return{
+      syncScene(nextScene){
+        scene=(nextScene==='lore'||nextScene==='night'||nextScene==='day')?nextScene:null;
+        reconcile();
+      },
+      stop(){desired=null;scene=null;halt('lore');halt('night');syncControls();}
     };
   })();
 
@@ -4270,14 +4300,18 @@
     });
     $('playerCount').value=players.length;
   }
+  function syncMusicForView(){
+    const classes=document.body.classList;
+    const scene=(classes.contains('title-playing')||classes.contains('lore-playing'))?'lore':
+      classes.contains('endgame-playing')?null:
+      isPresenting?(phase==='Night'?'night':'day'):null;
+    cocktowerMusic.syncScene(scene);
+  }
   function renderAll() {
     sanitizeSecretRoles();
     renderPhase(); renderSeats(); renderRoster(); renderDefaultRoleCount(); renderSecretRoleSetup();
     if (dialog.open) updateStatusDialog();
-    cocktowerNightMusic.syncPhase(phase==='Night' &&
-      !document.body.classList.contains('title-playing') &&
-      !document.body.classList.contains('lore-playing') &&
-      !document.body.classList.contains('endgame-playing'));
+    syncMusicForView();
   }
   function resizePlayers(value) {
     stopVoteTurnArrow();
@@ -4362,6 +4396,7 @@
     isPresenting=true;
     placeTimerForPresentation(true);
     document.body.classList.add('presenting');
+    syncMusicForView();
     renderTimer();
     requestAnimationFrame(() => { positionTownsquareSign(); alignWallpaperToBoard(); });
     $('presentBtn').classList.add('hidden');
@@ -4463,7 +4498,7 @@
     endgameScreen.querySelector('.endgame-victory-content').setAttribute('aria-hidden','true');
     $('endgameInstruction').textContent='Click anywhere to reveal the verdict';
     document.body.classList.add('endgame-playing');
-    cocktowerNightMusic.syncPhase(false);
+    syncMusicForView();
     document.querySelector('.app').inert=true;
     endgameState='awaiting-verdict';
     requestAnimationFrame(()=>{
@@ -4513,7 +4548,7 @@
     endgameScreen.setAttribute('aria-hidden','true');
     endgameScreen.className='endgame-screen';
     document.body.classList.remove('endgame-playing');
-    cocktowerNightMusic.syncPhase(phase==='Night');
+    // 'Return to Setup' exits presentation below, so do not restart Night music here.
     document.querySelector('.app').inert=false;
     $('endgameArtwork').removeAttribute('src');
     $('endgameNarration').replaceChildren();
@@ -4897,6 +4932,7 @@
       loreOpen=true;
       document.body.classList.remove('title-playing');
       document.body.classList.add('lore-playing');
+      syncMusicForView(); // The same Lore track keeps playing across the title transition.
       dockLoreAudio(true);
       $('loreNextBtn').focus({preventScroll:true});
     };
@@ -4910,7 +4946,7 @@
     loreScreen.hidden=false;
     loreScreen.inert=false;
     document.body.classList.add('lore-playing');
-    cocktowerNightMusic.syncPhase(false);
+    syncMusicForView();
     dockLoreAudio(true);
     document.querySelector('.app').inert=true;
     setLorePage(0);
@@ -4921,7 +4957,7 @@
     loreOpen=false;
     loreScreen.hidden=true;
     document.body.classList.remove('lore-playing');
-    cocktowerNightMusic.syncPhase(phase==='Night');
+    syncMusicForView();
     dockLoreAudio(false);
     document.querySelector('.app').inert=false;
     const destination=lorePreviousFocus?.isConnected?lorePreviousFocus:$('startGameBtn');
@@ -4980,7 +5016,7 @@
   $('returnToSetupBtn').addEventListener('click',returnFromEndgame);
   $('presentBtn').addEventListener('click',enterPresentation);
   $('editBtn').addEventListener('click',()=>{
-    isPresenting=false;placeTimerForPresentation(false);document.body.classList.remove('presenting');renderTimer();requestAnimationFrame(alignWallpaperToBoard);$('presentBtn').classList.remove('hidden');$('editBtn').classList.add('hidden');
+    isPresenting=false;placeTimerForPresentation(false);document.body.classList.remove('presenting');syncMusicForView();renderTimer();requestAnimationFrame(alignWallpaperToBoard);$('presentBtn').classList.remove('hidden');$('editBtn').classList.add('hidden');
     try{if(document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});}catch(_){}
   });
   $('resetNamesBtn').addEventListener('click',resetNames);
@@ -4994,8 +5030,8 @@
   $('dialogSeat').addEventListener('change',e=>moveSelected(Number(e.target.value)));
   $('closeDialogBtn').addEventListener('click',()=>dialog.close());$('doneDialogBtn').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&isPresenting&&endgameState==='idle'&&!endgameConfirmDialog.open&&!dialog.open&&!timerSettingsDialog.open&&!$('reassignDemonDialog').open){placeTimerForPresentation(false);document.body.classList.remove('presenting');renderTimer();$('presentBtn').classList.remove('hidden');$('editBtn').classList.add('hidden');isPresenting=false;}});
-  window.addEventListener('pagehide',()=>{cocktowerNightMusic.stop();if(timerRunning)pauseTimer();save();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&isPresenting&&endgameState==='idle'&&!endgameConfirmDialog.open&&!dialog.open&&!timerSettingsDialog.open&&!$('reassignDemonDialog').open){placeTimerForPresentation(false);document.body.classList.remove('presenting');renderTimer();$('presentBtn').classList.remove('hidden');$('editBtn').classList.add('hidden');isPresenting=false;syncMusicForView();}});
+  window.addEventListener('pagehide',()=>{cocktowerMusic.stop();if(timerRunning)pauseTimer();save();});
   document.addEventListener('fullscreenchange',()=>{/* Presentation layout intentionally stays on until Setup is selected. */});
 })();
 </script>
