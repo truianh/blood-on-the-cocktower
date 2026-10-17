@@ -3037,15 +3037,23 @@
   // Keep the existing preferences key so upgrading does not reset music settings.
   const cocktowerMusic=(()=>{
     const KEY='cocktowerNightMusicPrefsV1';
+    // The Night playlist advances at the end of each song, rather than looping
+    // just one file. Day pauses the currently playing song at its position.
+    const nightPlaylist=[
+      'Assets/Music/night-music.m4a',
+      'Assets/Music/night-music2.m4a'
+    ];
+    let nightPlaylistIndex=0;
     const tracks={
       lore:new Audio('Assets/Music/lore.mp3'),
-      night:new Audio('Assets/Music/night-music.m4a')
+      night:new Audio(nightPlaylist[nightPlaylistIndex])
     };
     Object.values(tracks).forEach(track=>{
-      track.loop=true;
       track.preload='metadata';
       track.volume=0;
     });
+    tracks.lore.loop=true; // Lore is a single looping song.
+    tracks.night.loop=false; // The ended event advances the Night playlist.
     const dock=document.getElementById('cocktowerMusicControls');
     const toggle=document.getElementById('cocktowerMusicToggle');
     const slider=document.getElementById('cocktowerMusicVolume');
@@ -3104,6 +3112,31 @@
       }
       fadeTimers[key]=setInterval(step,35);
     }
+    function playCurrentNightSong(){
+      if(desired!=='night')return;
+      try{
+        const started=tracks.night.play();
+        if(started&&typeof started.catch==='function')started.catch(()=>{
+          // Playback may be blocked until the next browser interaction.
+        });
+      }catch(_) { /* Keep game controls working if an audio file fails. */ }
+    }
+    function loadNightSong(index){
+      nightPlaylistIndex=index;
+      tracks.night.src=nightPlaylist[index];
+      tracks.night.load();
+      // Preserve the current volume so changing songs doesn't trigger a
+      // second Night fade-in; only entering Night fades in from silence.
+      playCurrentNightSong();
+    }
+    tracks.night.addEventListener('ended',()=>{
+      loadNightSong((nightPlaylistIndex+1)%nightPlaylist.length);
+    });
+    // Until the second file has been uploaded, continue the first track
+    // instead of leaving the Night soundtrack permanently silent.
+    tracks.night.addEventListener('error',()=>{
+      if(nightPlaylistIndex===1)loadNightSong(0);
+    });
     function beginPlayback(key){
       if(desired!==key || !tracks[key].paused)return;
       const track=tracks[key], token=++playTokens[key];
