@@ -2519,15 +2519,22 @@
     gap:clamp(10px,3vw,16px); padding:18px 0 20px;
   }
   .mobile-tracker-seat {
-    display:flex; align-items:center; justify-content:center;
-    min-width:0; min-height:clamp(70px,17vw,94px); padding:10px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+    min-width:0; min-height:clamp(86px,21vw,110px); padding:10px 8px;
     border:2px solid #d5c4a7; border-radius:16px;
     background:#fcfaf5; color:#211827;
-    font:800 clamp(23px,7vw,34px)/1 var(--font-ui),Arial,sans-serif;
     font-variant-numeric:tabular-nums;
     touch-action:manipulation; -webkit-tap-highlight-color:transparent;
     box-shadow:0 3px 8px rgba(0,0,0,.2);
     transition:background-color .13s ease,color .13s ease,border-color .13s ease;
+  }
+  .mobile-tracker-seat-number {
+    display:block; font:800 clamp(23px,7vw,32px)/1 var(--font-ui),Arial,sans-serif;
+  }
+  .mobile-tracker-seat-name {
+    display:block; max-width:100%; text-align:center;
+    font:600 clamp(12px,3.6vw,16px)/1.2 var(--font-ui),Arial,sans-serif;
+    overflow-wrap:anywhere; white-space:normal;
   }
   .mobile-tracker-seat.is-selected {
     background:#33273b; color:#fff; border-color:#b99abb;
@@ -2539,7 +2546,7 @@
     .mobile-tracker-top-actions { gap:7px; }
     .mobile-tracker-back,.mobile-tracker-reset { font-size:12px; padding:9px 10px; }
     .mobile-tracker-grid { gap:10px; padding-top:14px; }
-    .mobile-tracker-seat { min-height:72px; }
+    .mobile-tracker-seat { min-height:86px; }
   }
   @media(prefers-reduced-motion:reduce){
     .mobile-tracker-seat { transition:none; }
@@ -3316,6 +3323,10 @@
   function updateTrackerSummary(){
     $('mobileTrackerSummary').textContent=`${trackerSeats.size} of ${players.length} seats selected`;
   }
+  function trackerPlayerName(seat){
+    const name=players[seat-1]?.name;
+    return typeof name==='string' && name.trim()?name.trim():`Player ${seat}`;
+  }
   function renderTracker(){
     trimTrackerToSeatCount();
     const fragment=document.createDocumentFragment();
@@ -3325,9 +3336,15 @@
       button.type='button';
       button.className='mobile-tracker-seat'+(selected?' is-selected':'');
       button.dataset.seat=String(seat);
-      button.textContent=String(seat);
+      const number=document.createElement('span');
+      number.className='mobile-tracker-seat-number';
+      number.textContent=String(seat);
+      const name=document.createElement('span');
+      name.className='mobile-tracker-seat-name';
+      name.textContent=trackerPlayerName(seat);
+      button.append(number,name);
       button.setAttribute('aria-pressed',String(selected));
-      button.setAttribute('aria-label',`Seat ${seat}, ${selected?'selected':'unselected'}`);
+      button.setAttribute('aria-label',`Seat ${seat}: ${trackerPlayerName(seat)}, ${selected?'selected':'unselected'}`);
       fragment.append(button);
     }
     trackerGrid.replaceChildren(fragment);
@@ -3362,7 +3379,7 @@
     const selected=trackerSeats.has(seat);
     button.classList.toggle('is-selected',selected);
     button.setAttribute('aria-pressed',String(selected));
-    button.setAttribute('aria-label',`Seat ${seat}, ${selected?'selected':'unselected'}`);
+    button.setAttribute('aria-label',`Seat ${seat}: ${trackerPlayerName(seat)}, ${selected?'selected':'unselected'}`);
     updateTrackerSummary();
     saveTracker();
   });
