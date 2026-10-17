@@ -997,7 +997,8 @@
     width:0;
     height:0;
     object-fit:contain;
-    max-width:none;    pointer-events:none;
+    max-width:none;
+    pointer-events:none;
     user-select:none;
     z-index:11;
     filter:drop-shadow(0 5px 5px rgba(15,4,20,.8));
@@ -1996,7 +1997,8 @@
       flex-direction:column;
       min-height:0;
       gap:14px;
-      align-items:stretch;    }
+      align-items:stretch;
+    }
     body:not(.presenting) .board-panel {
       min-height:0;
       padding:12px 10px;
@@ -2456,6 +2458,32 @@
     bottom:max(12px,env(safe-area-inset-bottom));
     left:max(12px,env(safe-area-inset-left));
   }
+
+  /* Night soundtrack has its own mixer, independent of sound effects. */
+  .cocktower-audio-heading {
+    font:800 9px/1.15 var(--font-ui),Arial,sans-serif;
+    letter-spacing:.09em; white-space:nowrap; color:#e8c99e;
+  }
+  .cocktower-music-controls { top:calc(max(12px,env(safe-area-inset-top)) + 54px); }
+  .cocktower-music-controls .cocktower-audio-toggle { color:#e8d8ff; }
+  body:not(.title-playing):not(.lore-playing):not(.endgame-playing)
+    .cocktower-audio-controls.cocktower-music-controls {
+      bottom:calc(max(12px,env(safe-area-inset-bottom)) + 54px);
+  }
+  @media(max-width:1100px) {
+    .lore-toolbar { flex-wrap:wrap; justify-content:center; }
+    .lore-progress { flex:1 1 100%; justify-content:center; flex-wrap:wrap; }
+    .lore-actions { flex:1 1 100%; flex-wrap:wrap; justify-content:center; gap:6px; }
+    .lore-actions > .cocktower-audio-controls { margin-right:0; }
+  }
+  @media(max-width:520px) {
+    .cocktower-audio-heading { font-size:8px; }
+    .cocktower-music-controls { top:calc(max(12px,env(safe-area-inset-top)) + 50px); }
+    body:not(.title-playing):not(.lore-playing):not(.endgame-playing)
+      .cocktower-audio-controls.cocktower-music-controls {
+        bottom:calc(max(12px,env(safe-area-inset-bottom)) + 50px);
+    }
+  }
   .cocktower-audio-label { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
     overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   @media(max-width:520px) { .cocktower-audio-controls { gap:5px; padding:4px 7px 4px 4px; }
@@ -2860,10 +2888,17 @@
   <p>And thus, Deepwood Bottom shall now forever live up to its name.</p>
 </template>
 
-<div id="cocktowerAudioControls" class="cocktower-audio-controls" role="group" aria-label="Game sound controls">
+<div id="cocktowerAudioControls" class="cocktower-audio-controls" role="group" aria-label="Sound effects controls">
+  <span class="cocktower-audio-heading" aria-hidden="true">SFX</span>
   <button id="cocktowerAudioToggle" class="cocktower-audio-toggle" type="button" aria-label="Mute game sounds" aria-pressed="false" title="Mute game sounds">♫</button>
   <label class="cocktower-audio-label" for="cocktowerAudioVolume">Game audio volume</label>
   <input id="cocktowerAudioVolume" class="cocktower-audio-volume" type="range" min="0" max="100" step="1" value="45" aria-label="Game audio volume" title="Game audio volume">
+</div>
+<div id="cocktowerMusicControls" class="cocktower-audio-controls cocktower-music-controls" role="group" aria-label="Night background music controls">
+  <span class="cocktower-audio-heading" aria-hidden="true">NIGHT MUSIC</span>
+  <button id="cocktowerMusicToggle" class="cocktower-audio-toggle" type="button" aria-label="Mute night music" aria-pressed="false" title="Mute night music">♫</button>
+  <label class="cocktower-audio-label" for="cocktowerMusicVolume">Night background music volume</label>
+  <input id="cocktowerMusicVolume" class="cocktower-audio-volume" type="range" min="0" max="100" step="1" value="35" aria-label="Night background music volume" title="Night background music volume">
 </div>
 <script>
 (() => {
@@ -2995,7 +3030,121 @@
     // Sound controls never advance opening/end panels beneath the overlay.
     dock.addEventListener('click',e=>e.stopPropagation());
     dock.addEventListener('keydown',e=>e.stopPropagation());
-    sync();    return {play};
+    sync();
+    return {play};
+  })();
+
+
+  // Independent, phase-aware nighttime background soundtrack.
+  // Never route this track through the sound-effects mixer: each has its own
+  // persistent volume and mute setting. Audio position survives Day pauses.
+  const cocktowerNightMusic=(()=>{
+    const KEY='cocktowerNightMusicPrefsV1';
+    const music=new Audio('Assets/Music/night-music.m4a');
+    music.loop=true;
+    music.preload='metadata';
+    music.volume=0;
+    const dock=document.getElementById('cocktowerMusicControls');
+    const toggle=document.getElementById('cocktowerMusicToggle');
+    const slider=document.getElementById('cocktowerMusicVolume');
+    let muted=false, volume=.35, phaseEligible=false, desired=false;
+    let previousVolume=volume, fadeTimer=null, playToken=0;
+    try {
+      const prefs=JSON.parse(localStorage.getItem(KEY)||'null');
+      if(prefs&&typeof prefs==='object') {
+        if(Number.isFinite(prefs.volume)) volume=Math.max(0,Math.min(1,prefs.volume));
+        if(typeof prefs.muted==='boolean') muted=prefs.muted;
+      }
+    }catch(_) { /* Storage can be restricted for local files. */ }
+    function persist(){try{localStorage.setItem(KEY,JSON.stringify({muted,volume}));}catch(_){}}
+    function syncControls(){
+      const silent=muted||volume===0;
+      dock.classList.toggle('is-muted',silent);
+      toggle.textContent=silent?'♪̸':'♫';
+      toggle.setAttribute('aria-pressed',String(silent));
+      toggle.setAttribute('aria-label',silent?'Unmute night music':'Mute night music');
+      toggle.title=silent?'Unmute night music':'Mute night music';
+      slider.value=String(Math.round(volume*100));
+      slider.title='Night music volume '+Math.round(volume*100)+'%';
+      dock.title=phaseEligible?'Night music controls':'Night music (paused outside Night)';
+    }
+    function cancelFade(){if(fadeTimer!==null){clearInterval(fadeTimer);fadeTimer=null;}}
+    function fadeTo(target,duration,pauseWhenDone=false){
+      cancelFade();
+      target=Math.max(0,Math.min(1,target));
+      const start=music.volume, begin=performance.now();
+      function step(){
+        const t=Math.min(1,(performance.now()-begin)/duration);
+        const smooth=t*t*(3-2*t);
+        music.volume=Math.max(0,Math.min(1,start+(target-start)*smooth));
+        if(t>=1){
+          cancelFade();
+          if(pauseWhenDone && !desired) music.pause();
+        }
+      }
+      if(Math.abs(start-target)<.001 || !duration){
+        music.volume=target;
+        if(pauseWhenDone && !desired) music.pause();
+        return;
+      }
+      fadeTimer=setInterval(step,35);
+    }
+    function beginPlayback(){
+      if(!desired||!music.paused) return;
+      const token=++playToken;
+      cancelFade();
+      music.volume=0;
+      try {
+        const result=music.play();
+        if(result&&typeof result.then==='function') {
+          result.then(()=>{
+            if(token!==playToken) return;
+            if(!desired){music.pause();return;}
+            fadeTo(volume,1700);
+          }).catch(()=>{
+            // Browser autoplay policies may defer playback until a gesture.
+            // The next click/key press on the page will retry safely.
+          });
+        } else if(desired) fadeTo(volume,1700);
+      }catch(_) { /* Retry on the next user gesture. */ }
+    }
+    function reconcile(){
+      const want=phaseEligible&&!muted&&volume>0;
+      if(want!==desired){
+        desired=want;
+        playToken++;
+        if(!want) fadeTo(0,1300,true);
+        else if(music.paused) beginPlayback();
+        else fadeTo(volume,1500);
+      } else if(want && previousVolume!==volume){
+        if(music.paused) beginPlayback();
+        else fadeTo(volume,170);
+      }
+      previousVolume=volume;
+      syncControls();
+    }
+    toggle.addEventListener('click',()=>{
+      muted=!muted;
+      if(volume===0&&!muted) volume=.35;
+      reconcile();persist();
+    });
+    slider.addEventListener('input',()=>{
+      volume=Math.max(0,Math.min(1,Number(slider.value)/100));
+      muted=volume===0;
+      reconcile();persist();
+    });
+    // Re-attempt playback if the browser initially denied automatic audio.
+    // The handler only runs when it is actually Night and music is enabled.
+    function retryAfterGesture(){if(desired&&music.paused)beginPlayback();}
+    document.addEventListener('pointerdown',retryAfterGesture,true);
+    document.addEventListener('keydown',retryAfterGesture,true);
+    dock.addEventListener('click',event=>event.stopPropagation());
+    dock.addEventListener('keydown',event=>event.stopPropagation());
+    syncControls();
+    return {
+      syncPhase(isNight){phaseEligible=Boolean(isNight);reconcile();},
+      stop(){desired=false;playToken++;cancelFade();music.pause();music.volume=0;}
+    };
   })();
 
   const STORAGE_KEY = 'botc-townsquare-v2';
@@ -3994,7 +4143,8 @@
         if (measure.scrollWidth<=tokenWidth+0.5 && size*1.04<=availableHeight+1) {
           name.style.setProperty('--token-name-size',size+'px');
           name.style.whiteSpace='nowrap';
-          name.style.display='block';          found=true;
+          name.style.display='block';
+          found=true;
           break;
         }
       }
@@ -4126,6 +4276,10 @@
     sanitizeSecretRoles();
     renderPhase(); renderSeats(); renderRoster(); renderDefaultRoleCount(); renderSecretRoleSetup();
     if (dialog.open) updateStatusDialog();
+    cocktowerNightMusic.syncPhase(phase==='Night' &&
+      !document.body.classList.contains('title-playing') &&
+      !document.body.classList.contains('lore-playing') &&
+      !document.body.classList.contains('endgame-playing'));
   }
   function resizePlayers(value) {
     stopVoteTurnArrow();
@@ -4311,6 +4465,7 @@
     endgameScreen.querySelector('.endgame-victory-content').setAttribute('aria-hidden','true');
     $('endgameInstruction').textContent='Click anywhere to reveal the verdict';
     document.body.classList.add('endgame-playing');
+    cocktowerNightMusic.syncPhase(false);
     document.querySelector('.app').inert=true;
     endgameState='awaiting-verdict';
     requestAnimationFrame(()=>{
@@ -4360,6 +4515,7 @@
     endgameScreen.setAttribute('aria-hidden','true');
     endgameScreen.className='endgame-screen';
     document.body.classList.remove('endgame-playing');
+    cocktowerNightMusic.syncPhase(phase==='Night');
     document.querySelector('.app').inert=false;
     $('endgameArtwork').removeAttribute('src');
     $('endgameNarration').replaceChildren();
@@ -4637,14 +4793,18 @@
   const titleScreen=$('titleScreen');
   const loreScreen=$('loreScreen');
   const audioDock=$('cocktowerAudioControls');
+  const musicDock=$('cocktowerMusicControls');
   const loreActions=loreScreen.querySelector('.lore-actions');
   function dockLoreAudio(docked) {
     if(docked) {
+      loreActions.prepend(musicDock);
       loreActions.prepend(audioDock);
       audioDock.classList.add('is-lore-docked');
+      musicDock.classList.add('is-lore-docked');
     } else {
       audioDock.classList.remove('is-lore-docked');
-      document.body.append(audioDock);
+      musicDock.classList.remove('is-lore-docked');
+      document.body.append(audioDock,musicDock);
     }
   }
   const lorePages=Array.from(loreScreen.querySelectorAll('[data-lore-page]'));
@@ -4756,6 +4916,7 @@
     loreScreen.hidden=false;
     loreScreen.inert=false;
     document.body.classList.add('lore-playing');
+    cocktowerNightMusic.syncPhase(false);
     dockLoreAudio(true);
     document.querySelector('.app').inert=true;
     setLorePage(0);
@@ -4766,6 +4927,7 @@
     loreOpen=false;
     loreScreen.hidden=true;
     document.body.classList.remove('lore-playing');
+    cocktowerNightMusic.syncPhase(phase==='Night');
     dockLoreAudio(false);
     document.querySelector('.app').inert=false;
     const destination=lorePreviousFocus?.isConnected?lorePreviousFocus:$('startGameBtn');
@@ -4790,7 +4952,7 @@
   loreScreen.addEventListener('click',event=>{
     if(!loreOpen || !loreScreen.classList.contains('is-finished')) return;
     // Audio controls must stay usable even on the final "click anywhere" page.
-    if(event.target.closest('#cocktowerAudioControls')) return;
+    if(event.target.closest('#cocktowerAudioControls, #cocktowerMusicControls')) return;
     event.preventDefault();
     event.stopPropagation();
     closeCocktowerLore();
@@ -4839,7 +5001,7 @@
   $('closeDialogBtn').addEventListener('click',()=>dialog.close());$('doneDialogBtn').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&isPresenting&&endgameState==='idle'&&!endgameConfirmDialog.open&&!dialog.open&&!timerSettingsDialog.open&&!$('reassignDemonDialog').open){placeTimerForPresentation(false);document.body.classList.remove('presenting');renderTimer();$('presentBtn').classList.remove('hidden');$('editBtn').classList.add('hidden');isPresenting=false;}});
-  window.addEventListener('pagehide',()=>{if(timerRunning)pauseTimer();save();});
+  window.addEventListener('pagehide',()=>{cocktowerNightMusic.stop();if(timerRunning)pauseTimer();save();});
   document.addEventListener('fullscreenchange',()=>{/* Presentation layout intentionally stays on until Setup is selected. */});
 })();
 </script>
